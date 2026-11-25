@@ -18,7 +18,8 @@ def build(data):
                 a,b=rows
                 if a["driverId"]==b["driverId"]: continue
                 events.append([race["year"],race["round"],race["grandPrixId"],kind,team,a["driverId"],b["driverId"],a["positionNumber"],b["positionNumber"],a.get("reasonRetired"),b.get("reasonRetired")])
-    return {"version":VERSION,"drivers":drivers,"teams":teams,"events":events,"coverageStart":1982}
+    from analytics import analytics
+    return {"version":VERSION,"drivers":drivers,"teams":teams,"events":events,"coverageStart":1982,"analytics":analytics(data,events)}
 if __name__=="__main__":
     with urllib.request.urlopen(URL,timeout=120) as r: archive=zipfile.ZipFile(io.BytesIO(r.read()))
     names=[n for n in archive.namelist() if n.endswith(".json") and not n.endswith("schema.json")]
