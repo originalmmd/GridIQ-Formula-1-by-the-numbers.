@@ -42,21 +42,21 @@ def analytics(data, events):
     def qtime(r):return r.get("timeMillis")
     qdiff=defaultdict(list)
     for (y,_,t),a in qevent.items():
-        if y<1982 or len(a)!=2:continue
+        if y<2000 or len(a)!=2:continue
         x,z=a
         # Compare the same qualifying segment, never Q1 against Q3.
         for f in ["q3Millis","q2Millis","q1Millis","timeMillis"]:
             if x.get(f) and z.get(f):
                 qdiff[x["driverId"]].append(100*(z[f]-x[f])/z[f])
                 qdiff[z["driverId"]].append(100*(x[f]-z[f])/x[f]);break
-    rank("Drivers","Qualifying dominance","Mean percentage advantage over the other constructor driver in the latest mutually timed segment, 1982+, minimum 10.",[[nm(k),round(mean(v),3),len(v)] for k,v in qdiff.items() if len(v)>=10],["Driver","Mean advantage %","Pairs"])
+    rank("Drivers","Qualifying dominance","Mean percentage advantage over the other constructor driver in the latest mutually timed segment, 2000+, minimum 10.",[[nm(k),round(mean(v),3),len(v)] for k,v in qdiff.items() if len(v)>=10],["Driver","Mean advantage %","Pairs"])
     dif=defaultdict(list); h2h=defaultdict(list); partners=defaultdict(set)
     for y,r,g,s,t,a,b,p,q,*_ in events:
         partners[a].add(b);partners[b].add(a)
         for d,x,z in [(a,p,q),(b,q,p)]:
             h2h[d].append((y,s,x,z))
             if s=="race":dif[d].append(z-x)
-    rank("Drivers","Race dominance","Mean teammate finishing-position advantage, classified pairs since 1982, minimum 10.",[[nm(k),round(mean(v),2),len(v)] for k,v in dif.items() if len(v)>=10])
+    rank("Drivers","Race dominance","Mean teammate finishing-position advantage, classified pairs since 2000, minimum 10.",[[nm(k),round(mean(v),2),len(v)] for k,v in dif.items() if len(v)>=10])
     rank("Drivers","Consistency","Population standard deviation of classified finishing positions, minimum 20; lower is more consistent, not necessarily faster.",[[nm(k),round(pstdev([pos(r) for r in v]),2),len(v)] for k,v in cl.items() if len(v)>=20],reverse=False)
     rank("Drivers","Net positions gained","Mean grid minus classified finish; not an overtake count; minimum 20.",[[nm(k),round(mean([grid(r)-pos(r) for r in v if grid(r)]),2),sum(bool(grid(r)) for r in v)] for k,v in cl.items() if sum(bool(grid(r)) for r in v)>=20])
     for title,n,finish in [("Pole conversion",1,1),("Top-three start conversion",3,3)]:
@@ -72,8 +72,8 @@ def analytics(data, events):
         total=sum(p.values())
         if total:contrib.extend([[nm(k)+" · "+tm(t)+" · "+str(y),pct(a,total),round(a,2)] for k,a in p.items()])
     rank("Drivers","Points contribution","Share of recorded Grand Prix driver points by constructor-season; excludes sprint and constructor-specific scoring rules.",contrib,["Driver / team / season","Share %","Race points"])
-    first={k:min(r["y"] for r in v) for k,v in by.items()}
-    rank("Drivers","Rookie teammate performance","First recorded race-start season, eligible teammate sessions since 1982; minimum 5.",[[nm(k),pct(sum(x<z for y,s,x,z in v if y==first.get(k))+.5*sum(x==z for y,s,x,z in v if y==first.get(k)),sum(y==first.get(k) for y,s,x,z in v)),sum(y==first.get(k) for y,s,x,z in v)] for k,v in h2h.items() if sum(y==first.get(k) for y,s,x,z in v)>=5])
+    first={k:min(r["y"] for r in v) for k,v in by.items() if k not in data.get("earlierDrivers",set())}
+    rank("Drivers","Rookie teammate performance","First career race-start season from 2000 onward; drivers with earlier starts excluded; minimum 5.",[[nm(k),pct(sum(x<z for y,s,x,z in v if y==first.get(k))+.5*sum(x==z for y,s,x,z in v if y==first.get(k)),sum(y==first.get(k) for y,s,x,z in v)),sum(y==first.get(k) for y,s,x,z in v)] for k,v in h2h.items() if sum(y==first.get(k) for y,s,x,z in v)>=5])
     progression=[]; transfers=[]; streaks=[]; records=[]
     for k,v in by.items():
         seasons=group(v,lambda r:r["y"]);prev=None
@@ -93,9 +93,9 @@ def analytics(data, events):
             for r in v:run=run+1 if pred(r) else 0;best=max(best,run)
             if best:streaks.append([nm(k),title,best])
         wins=[r for r in v if pos(r)==1];pod=sum(bool(pos(r) and pos(r)<=3) for r in v)
-        if wins:records.append([nm(k),"Starts before first win",v.index(wins[0])])
-        elif pod:records.append([nm(k),"Podiums without victory",pod])
-        if not any(grid(r)==1 for r in v):records.append([nm(k),"Starts without pole grid position",len(v)])
+        if wins and k not in data.get("earlierDrivers",set()):records.append([nm(k),"Starts before first win",v.index(wins[0])])
+        elif not wins and pod:records.append([nm(k),"Podiums without victory since 2000",pod])
+        if not any(grid(r)==1 for r in v):records.append([nm(k),"Starts without pole grid position since 2000",len(v)])
         if partners[k]:records.append([nm(k),"Distinct observed teammates",len(partners[k])])
         if wins and births.get(k):
             for r in wins:
@@ -104,9 +104,9 @@ def analytics(data, events):
         run=best=0
         for y,s,x,z in h2h[k]:run=run+1 if x>z else 0;best=max(run,best)
         if best:records.append([nm(k),"Consecutive teammate defeats (recorded sessions)",best])
-    add("Drivers","Career progression","Season-by-season Grand Prix starts, wins, podiums, points and classified mean finish. Age at first start of season.",["Driver","Season","Age","Starts","Wins","Podiums","Points","Mean finish"],progression)
+    add("Drivers","Career progression","Season-by-season Grand Prix starts since 2000, wins, podiums, points and classified mean finish. Age at first start of season.",["Driver","Season","Age","Starts","Wins","Podiums","Points","Mean finish"],progression)
     add("Drivers","Team changes","Consecutive seasons with one different constructor each; mean classified finish before and after, not causal attribution.",["Driver","Season","From","To","Prior mean","New mean"],transfers)
-    add("Drivers","Career streaks","Consecutive recorded starts satisfying criterion; shared cars excluded.",["Driver","Type","Longest streak"],sorted(streaks,key=lambda x:-x[2]))
+    add("Drivers","Career streaks","Consecutive recorded starts since 2000 satisfying criterion; shared cars excluded.",["Driver","Type","Longest streak"],sorted(streaks,key=lambda x:-x[2]))
     reasons=Counter((nm(r["driverId"]),r["reasonRetired"]) for r in starts if r.get("reasonRetired"))
     add("Drivers","Retirement reasons","Recorded source reasons, no inferred fault or mechanical classification.",["Driver","Recorded reason","Count"],[[a,b,c] for (a,b),c in reasons.most_common()])
     circuitrows=[]
@@ -128,7 +128,7 @@ def analytics(data, events):
     add("Constructors","Season dominance and one-twos","Grand Prix wins as share of all completed season races; one-two requires both finishing positions.",["Constructor","Season","Events entered","Wins","Win %","One-twos"],teamrows)
     add("Constructors","Driver dependency","Largest driver share of Grand Prix points, excluding sprint and constructor scoring differences.",["Constructor","Season","Top contributor","Share %"],dep)
     add("Constructors","Development race","Round-by-round best and mean classified finish, not a pure car-speed measure.",["Constructor","Season","Round","Best finish","Mean finish"],development)
-    add("Constructors","Regulation transitions","Observed race win shares in consecutive seasons around selected major regulation changes; descriptive only.",["Constructor","Change year","Prior win %","New win %"],[[t,y,next((r[4] for r in teamrows if r[0]==t and r[1]==y-1),None),p] for t,y,_,_,p,_ in teamrows if y in (1989,1994,1998,2009,2014,2017,2022,2026)])
+    add("Constructors","Regulation transitions","Observed race win shares in consecutive seasons around selected major regulation changes; descriptive only.",["Constructor","Change year","Prior win %","New win %"],[[t,y,next((r[4] for r in teamrows if r[0]==t and r[1]==y-1),None),p] for t,y,_,_,p,_ in teamrows if y in (2009,2014,2017,2022,2026)])
     pr=group([r for r in pit if r.get("timeMillis")],lambda r:(r["constructorId"],r["y"]))
     add("Constructors","Recorded pit-stop times","Source recorded total stop time in seconds, not necessarily stationary wheel-change duration.",["Constructor","Season","Mean seconds","SD seconds","Stops"],[[tm(t),y,round(mean([r["timeMillis"] for r in v])/1000,2),round(pstdev([r["timeMillis"] for r in v])/1000,2),len(v)] for (t,y),v in pr.items()])
     cr=Counter((tm(r["constructorId"]),r["y"],r["reasonRetired"]) for r in starts if r.get("reasonRetired"))
@@ -173,9 +173,10 @@ def analytics(data, events):
         champ.append([y,nm(winner["driverId"]),round(winner["points"]-second["points"],2) if second else None,len(racewinners),changes,round(deficit,2) if confirmed else None,clinch,"Confirmed" if confirmed else "Snapshot leader"])
     add("Championships","Season battles","Official recorded standings: points margins under original rules, distinct GP winners, round-end lead changes, confirmed champion maximum deficit and first recorded title flag. In-progress seasons labeled.",["Season","Leader","Margin pts","Race winners","Lead changes","Deficit overcome","Clinched round","Status"],champ)
     add("Championships","Championship timeline","Recorded leader after each Grand Prix.",["Season","Round","Leader","Points"],timeline)
-    for d in data["drivers"]:
-        if d.get("totalRaceWins") and d.get("totalChampionshipWins")==0:records.append([d["name"],"Wins without championship",d["totalRaceWins"]])
-    add("Records","Unusual records","Recorded career and event statistics; use search for record category and sort value ascending/descending. Shared-car exclusions apply to derived starts.",["Driver","Record","Value","Event"],[r+[None]*(4-len(r)) for r in records])
+    for k,v in by.items():
+        wins=sum(pos(r)==1 for r in v)
+        if wins and k not in champions:records.append([nm(k),"Wins without championship since 2000",wins])
+    add("Records","Unusual records","Recorded career and event statistics within 2000 onward; use search for record category and sort value ascending/descending. Shared-car exclusions apply to derived starts.",["Driver","Record","Value","Event"],[r+[None]*(4-len(r)) for r in records])
     # Conservative reason classification: unknown reasons remain unclassified.
     mechanical=re.compile(r"^(engine|gearbox|transmission|clutch|hydraulics|electrical|electronics|brakes|brake|suspension|driveshaft|differential|fuel pump|oil pump|water pump|turbo|radiator|alternator|battery|ignition|power unit|mechanical|steering|exhaust|cooling|oil leak|water leak)$",re.I)
     incident=re.compile(r"^(accident|collision|spun off|spin|crash|damage|collision damage)$",re.I)
