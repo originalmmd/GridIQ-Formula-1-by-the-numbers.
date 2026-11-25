@@ -176,4 +176,22 @@ def analytics(data, events):
     for d in data["drivers"]:
         if d.get("totalRaceWins") and d.get("totalChampionshipWins")==0:records.append([d["name"],"Wins without championship",d["totalRaceWins"]])
     add("Records","Unusual records","Recorded career and event statistics; use search for record category and sort value ascending/descending. Shared-car exclusions apply to derived starts.",["Driver","Record","Value","Event"],[r+[None]*(4-len(r)) for r in records])
+    # Conservative reason classification: unknown reasons remain unclassified.
+    mechanical=re.compile(r"^(engine|gearbox|transmission|clutch|hydraulics|electrical|electronics|brakes|brake|suspension|driveshaft|differential|fuel pump|oil pump|water pump|turbo|radiator|alternator|battery|ignition|power unit|mechanical|steering|exhaust|cooling|oil leak|water leak)$",re.I)
+    incident=re.compile(r"^(accident|collision|spun off|spin|crash|damage|collision damage)$",re.I)
+    for section,groups,display in [("Drivers",by,lambda k:nm(k)),("Constructors",ts,lambda k:tm(k[0])+" · "+str(k[1]))]:
+        rows=[]
+        for k,v in groups.items():
+            reasons=[r["reasonRetired"].strip() for r in v if r.get("reasonRetired")]
+            m=sum(bool(mechanical.fullmatch(x)) for x in reasons)
+            i=sum(bool(incident.fullmatch(x)) for x in reasons)
+            rows.append([display(k),pct(m,len(v)),len(v),m,i,len(reasons)-m-i])
+        rank(section,"Mechanical reliability","Conservative exact-match classification of recorded retirement reasons; unknown reasons remain separate. Incident does not imply driver fault.",rows,["Name","Mechanical retirements %","Starts","Mechanical","Incident","Other/unknown"],reverse=False)
+    gaps=[]; circuitgaps=[]
+    for race in completed:
+        a=[r for r in race["raceResults"] if pos(r) and r.get("gapMillis") is not None and not r.get("gapLaps")]
+        if a:
+            gaps.append([f'{race["year"]} · {race["grandPrixId"]}',max(r["gapMillis"] for r in a)/1000,len(a)])
+    add("Championships","Race field spread","Largest recorded time gap to winner among classified finishers with time gaps, excluding lap gaps; coverage varies.",["Event","Maximum gap seconds","Timed finishers"],gaps)
+    add("Circuits","Winning margins by circuit","Recorded winner-to-runner-up gap for same-lap finishes.",["Circuit","Event","Winner","Seconds"],[[circuits.get(r["circuitId"],r["circuitId"]),label,w,sec] for r in completed for label,w,_,sec in margins if label==f'{r["year"]} · {r["grandPrixId"]}'])
     return catalog
